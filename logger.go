@@ -1,4 +1,4 @@
-package joylog
+package joylogger
 
 import (
 	"go.uber.org/zap"
