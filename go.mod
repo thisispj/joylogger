@@ -1,4 +1,4 @@
-module joylog
+module github.com/thisispj/joylog
 
 go 1.23
 
