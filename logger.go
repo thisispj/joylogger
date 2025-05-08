@@ -4,8 +4,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"os"
+	"path/filepath"
 )
 
+// Logger is a wrapper around zap.Logger to provide additional functionality.
 type Logger struct {
 	zap     *zap.Logger
 	sugared *zap.SugaredLogger
@@ -20,12 +22,19 @@ func New(prod bool, level zapcore.Level, logToFile bool, filePath string) (*Logg
 		cfg = zap.NewDevelopmentConfig()
 	}
 
-	// Set log level
+	// Set the log level
 	cfg.Level.SetLevel(level)
 
 	// Configure log output destinations
 	var writer zapcore.WriteSyncer
 	if logToFile {
+		// Ensure the directory exists for the log file
+		dir := filepath.Dir(filePath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, err
+		}
+
+		// Open or create the log file
 		file, err := os.OpenFile(filePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 		if err != nil {
 			return nil, err
@@ -35,13 +44,15 @@ func New(prod bool, level zapcore.Level, logToFile bool, filePath string) (*Logg
 		writer = zapcore.AddSync(os.Stdout)
 	}
 
-	// Set encoder configuration
+	// Set encoder configuration (we use production encoder here)
 	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder // Use ISO8601 format for timestamps
 	encoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	// Create core and logger
+	// Create core and logger instance using zapcore
 	core := zapcore.NewCore(encoder, writer, zap.NewAtomicLevelAt(level))
+
+	// Create a logger with the desired configuration
 	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
 
 	return &Logger{
@@ -50,7 +61,7 @@ func New(prod bool, level zapcore.Level, logToFile bool, filePath string) (*Logg
 	}, nil
 }
 
-// With adds context fields to the logger.
+// With adds context fields to the logger for structured logging.
 func (l *Logger) With(fields ...zap.Field) *Logger {
 	newZap := l.zap.With(fields...)
 	return &Logger{
@@ -79,12 +90,12 @@ func (l *Logger) Warn(msg string, fields ...zap.Field) {
 	l.zap.Warn(msg, fields...)
 }
 
-// Fatal logs a fatal message and exits.
+// Fatal logs a fatal-level message and terminates the application.
 func (l *Logger) Fatal(msg string, fields ...zap.Field) {
 	l.zap.Fatal(msg, fields...)
 }
 
-// Sync flushes the logger (important for file/async logging).
+// Sync ensures that any buffered log entries are written.
 func (l *Logger) Sync() error {
 	return l.zap.Sync()
 }
